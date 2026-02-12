@@ -115,6 +115,7 @@
       <button class="tab active" data-tab="log">+ Log</button>
       <button class="tab" data-tab="history">History</button>
       <button class="tab" data-tab="stats">Stats</button>
+      <button class="tab" data-tab="data">Data</button>
     </div>
     
     <!-- LOG PANEL -->
@@ -168,6 +169,25 @@
     <!-- STATS PANEL -->
     <div class="panel" id="panel-stats">
       <div id="stats-content"></div>
+    </div>
+
+    <!-- DATA PANEL -->
+    <div class="panel" id="panel-data">
+      <div class="card">
+        <h3 style="margin-bottom:12px">📦 Export</h3>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px">Download all your sessions as a JSON file. Use this to back up your data or transfer it to another device.</p>
+        <button class="btn" id="export-btn">⬇ Export Sessions (JSON)</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3 style="margin-bottom:12px">📥 Import</h3>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px">Import sessions from a JSON backup file. You can choose to merge with existing data or replace it entirely.</p>
+        <input type="file" id="import-file" accept=".json,application/json" style="margin-bottom:12px">
+        <div class="row">
+          <button class="btn" id="import-merge-btn" style="background:var(--green)">Merge with Existing</button>
+          <button class="btn btn-danger" id="import-replace-btn">Replace All</button>
+        </div>
+        <div id="import-status" style="margin-top:12px;font-size:0.85rem;color:var(--muted);display:none"></div>
+      </div>
     </div>
   </div>
   
@@ -358,6 +378,64 @@
         }).join('')}</div></div>` : ''}
       `;
     }
+
+    // --- EXPORT / IMPORT ---
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const data = { version: 1, exportedAt: new Date().toISOString(), sessions };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'seshlog-backup-' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    function parseImportFile(callback) {
+      const file = document.getElementById('import-file').files[0];
+      const status = document.getElementById('import-status');
+      if (!file) { alert('Pick a JSON file first!'); return; }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const raw = JSON.parse(e.target.result);
+          const imported = Array.isArray(raw) ? raw : (raw.sessions || []);
+          // Validate
+          if (!Array.isArray(imported)) throw new Error('Invalid format');
+          const valid = imported.filter(s => s.id && s.date);
+          if (!valid.length) throw new Error('No valid sessions found');
+          callback(valid, status);
+        } catch (err) {
+          status.style.display = 'block';
+          status.style.color = 'var(--red)';
+          status.textContent = '❌ ' + err.message;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    document.getElementById('import-merge-btn').addEventListener('click', () => {
+      parseImportFile((imported, status) => {
+        const existingIds = new Set(sessions.map(s => s.id));
+        const newOnes = imported.filter(s => !existingIds.has(s.id));
+        sessions = [...sessions, ...newOnes].sort((a, b) => b.date.localeCompare(a.date));
+        localStorage.setItem('seshlog_sessions', JSON.stringify(sessions));
+        status.style.display = 'block';
+        status.style.color = 'var(--green)';
+        status.textContent = '✅ Merged! ' + newOnes.length + ' new session(s) added (' + (imported.length - newOnes.length) + ' duplicates skipped).';
+      });
+    });
+
+    document.getElementById('import-replace-btn').addEventListener('click', () => {
+      if (!confirm('This will replace ALL your current sessions. Are you sure?')) return;
+      parseImportFile((imported, status) => {
+        sessions = imported.sort((a, b) => b.date.localeCompare(a.date));
+        localStorage.setItem('seshlog_sessions', JSON.stringify(sessions));
+        status.style.display = 'block';
+        status.style.color = 'var(--green)';
+        status.textContent = '✅ Replaced! ' + imported.length + ' session(s) imported.';
+      });
+    });
   </script>
 </body>
 </html>
