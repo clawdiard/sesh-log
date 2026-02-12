@@ -163,6 +163,17 @@
           </div>
         </div>
         <div class="field">
+          <label>📸 Session Photo</label>
+          <div id="photo-area" style="margin-top:6px">
+            <input type="file" id="sesh-photo" accept="image/*" capture="environment" style="display:none">
+            <div id="photo-preview" style="display:none;position:relative;margin-bottom:8px">
+              <img id="photo-preview-img" style="width:100%;border-radius:8px;border:1px solid var(--border)">
+              <button id="photo-remove" style="position:absolute;top:6px;right:6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:1rem;cursor:pointer;line-height:1">×</button>
+            </div>
+            <button class="btn btn-sm" id="photo-add-btn" style="background:var(--card);border:1px solid var(--border);color:var(--muted)">📷 Add Photo</button>
+          </div>
+        </div>
+        <div class="field">
           <label>Notes</label>
           <textarea id="sesh-notes" placeholder="How did it go? What did you work on?"></textarea>
         </div>
@@ -236,6 +247,36 @@
       renderTrickPicker();
     }
 
+    // --- PHOTO ---
+    let sessionPhoto = null;
+    const photoInput = document.getElementById('sesh-photo');
+    const photoPreview = document.getElementById('photo-preview');
+    const photoPreviewImg = document.getElementById('photo-preview-img');
+    document.getElementById('photo-add-btn').addEventListener('click', () => photoInput.click());
+    document.getElementById('photo-remove').addEventListener('click', () => { sessionPhoto = null; photoPreview.style.display = 'none'; document.getElementById('photo-add-btn').style.display = ''; });
+    photoInput.addEventListener('change', () => {
+      const file = photoInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        // Resize to max 800px to save localStorage space
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          let w = img.width, h = img.height;
+          if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          sessionPhoto = c.toDataURL('image/jpeg', 0.7);
+          photoPreviewImg.src = sessionPhoto;
+          photoPreview.style.display = 'block';
+          document.getElementById('photo-add-btn').style.display = 'none';
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
     // --- TABS ---
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -294,6 +335,7 @@
         date, duration, location, notes,
         mood: selectedMood,
         tricks: Array.from(selectedTricks),
+        photo: sessionPhoto || null,
         createdAt: new Date().toISOString()
       };
       sessions.unshift(sesh);
@@ -305,6 +347,7 @@
       selectedTricks.clear();
       selectedMood = '';
       document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+      sessionPhoto = null; photoPreview.style.display = 'none'; document.getElementById('photo-add-btn').style.display = '';
       renderTrickPicker();
       alert('Session saved! 🤙');
     });
@@ -326,6 +369,7 @@
             <span class="session-mood">${s.mood || ''}</span>
           </div>
           ${s.location ? `<div class="session-location">📍 ${s.location}</div>` : ''}
+          ${s.photo ? `<img src="${s.photo}" style="width:100%;border-radius:8px;margin-top:8px;border:1px solid var(--border)">` : ''}
           ${s.duration ? `<div class="session-duration">⏱ ${s.duration} min</div>` : ''}
           ${trickNames.length ? `<div class="session-tricks">${trickNames.map(n => `<span class="trick-chip selected">${n}</span>`).join('')}</div>` : ''}
           ${s.notes ? `<div class="session-notes">"${s.notes}"</div>` : ''}
@@ -343,6 +387,7 @@
       sheet.innerHTML = `
         <h3>${s.mood || '🛹'} ${new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</h3>
         ${s.location ? `<p>📍 <strong>${s.location}</strong></p>` : ''}
+        ${s.photo ? `<img src="${s.photo}" style="width:100%;border-radius:8px;margin:8px 0;border:1px solid var(--border)">` : ''}
         ${s.duration ? `<p>⏱ ${s.duration} minutes</p>` : ''}
         ${trickNames.length ? `<p style="margin-top:8px"><strong>Tricks Landed:</strong></p><div class="session-tricks" style="margin-top:4px">${trickNames.map(n => `<span class="trick-chip selected">${n}</span>`).join('')}</div>` : ''}
         ${s.notes ? `<p style="margin-top:12px"><strong>Notes:</strong></p><p style="color:var(--muted);font-style:italic">${s.notes}</p>` : ''}
