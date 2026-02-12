@@ -157,6 +157,10 @@
           <label>Tricks Landed</label>
           <input type="text" id="trick-search" placeholder="Search tricks...">
           <div class="trick-picker" id="trick-picker"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input type="text" id="custom-trick-input" placeholder="Add a custom trick..." style="flex:1">
+            <button class="btn btn-sm" id="add-custom-trick-btn" style="white-space:nowrap">+ Add</button>
+          </div>
         </div>
         <div class="field">
           <label>Notes</label>
@@ -211,7 +215,26 @@
     let selectedTricks = new Set();
     let selectedMood = '';
 
-    fetch('data/tricks.json').then(r => r.json()).then(t => { TRICKS = t; renderTrickPicker(); });
+    let customTricks = JSON.parse(localStorage.getItem('seshlog_custom_tricks') || '[]');
+    fetch('data/tricks.json').then(r => r.json()).then(t => { TRICKS = t.concat(customTricks); renderTrickPicker(); });
+
+    // --- CUSTOM TRICK ---
+    document.getElementById('add-custom-trick-btn').addEventListener('click', addCustomTrick);
+    document.getElementById('custom-trick-input').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomTrick(); });
+    function addCustomTrick() {
+      const input = document.getElementById('custom-trick-input');
+      const name = input.value.trim();
+      if (!name) return;
+      const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      if (TRICKS.find(t => t.id === id)) { input.value = ''; selectedTricks.add(id); renderTrickPicker(); return; }
+      const trick = { id, name, category: 'Custom', difficulty: 3 };
+      customTricks.push(trick);
+      TRICKS.push(trick);
+      localStorage.setItem('seshlog_custom_tricks', JSON.stringify(customTricks));
+      selectedTricks.add(id);
+      input.value = '';
+      renderTrickPicker();
+    }
 
     // --- TABS ---
     document.querySelectorAll('.tab').forEach(tab => {
