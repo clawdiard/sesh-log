@@ -110,6 +110,28 @@
     .detail-actions { display: flex; gap: 8px; margin-top: 16px; }
     
     .category-header { font-size: 0.75rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.5px; width: 100%; margin-top: 8px; font-weight: 700; }
+    
+    .goal-card { position: relative; overflow: hidden; }
+    .goal-progress-bg { position: absolute; top: 0; left: 0; height: 100%; background: rgba(108,92,231,0.1); transition: width 0.5s ease; z-index: 0; }
+    .goal-card > *:not(.goal-progress-bg) { position: relative; z-index: 1; }
+    .goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .goal-title { font-weight: 700; font-size: 0.95rem; }
+    .goal-deadline { font-size: 0.78rem; color: var(--muted); }
+    .goal-deadline.overdue { color: var(--red); }
+    .goal-bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .goal-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.5s ease; }
+    .goal-bar-fill.complete { background: linear-gradient(90deg, var(--green), #55efc4); }
+    .goal-nums { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); }
+    .goal-complete-banner { text-align: center; font-size: 1.1rem; font-weight: 700; color: var(--green); margin-top: 6px; }
+    .goal-actions { display: flex; gap: 6px; margin-top: 10px; }
+    
+    .badge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .badge-card { text-align: center; padding: 20px 12px; transition: all 0.2s; }
+    .badge-card.locked { opacity: 0.35; filter: grayscale(1); }
+    .badge-icon { font-size: 2.5rem; margin-bottom: 6px; }
+    .badge-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 2px; }
+    .badge-desc { font-size: 0.75rem; color: var(--muted); }
+    .badge-date { font-size: 0.7rem; color: var(--green); margin-top: 4px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -123,6 +145,7 @@
       <button class="tab active" data-tab="log">+ Log</button>
       <button class="tab" data-tab="history">History</button>
       <button class="tab" data-tab="stats">Stats</button>
+      <button class="tab" data-tab="goals">Goals</button>
       <button class="tab" data-tab="data">Data</button>
     </div>
     
@@ -192,6 +215,48 @@
     <!-- STATS PANEL -->
     <div class="panel" id="panel-stats">
       <div id="stats-content"></div>
+    </div>
+
+    <!-- GOALS PANEL -->
+    <div class="panel" id="panel-goals">
+      <div class="tabs" style="margin-bottom:16px" id="goals-subtabs">
+        <button class="tab active" data-subtab="active-goals">Active Goals</button>
+        <button class="tab" data-subtab="achievements">🏅 Badges</button>
+      </div>
+      <div id="subtab-active-goals">
+        <div class="card" id="goal-form-card">
+          <h3 style="margin-bottom:12px">🎯 New Goal</h3>
+          <div class="field">
+            <label>Goal Type</label>
+            <select id="goal-type">
+              <option value="trick-count">Land a trick X times</option>
+              <option value="unique-tricks">Learn X new tricks</option>
+              <option value="session-count">Log X sessions</option>
+              <option value="total-minutes">Skate X total minutes</option>
+              <option value="streak">Maintain X-day streak</option>
+            </select>
+          </div>
+          <div class="field" id="goal-trick-field">
+            <label>Trick</label>
+            <select id="goal-trick"></select>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Target</label>
+              <input type="number" id="goal-target" placeholder="10" min="1">
+            </div>
+            <div class="field">
+              <label>Deadline</label>
+              <input type="date" id="goal-deadline">
+            </div>
+          </div>
+          <button class="btn" id="save-goal-btn">Set Goal</button>
+        </div>
+        <div id="goals-list" style="margin-top:16px"></div>
+      </div>
+      <div id="subtab-achievements" style="display:none">
+        <div id="achievements-grid"></div>
+      </div>
     </div>
 
     <!-- DATA PANEL -->
@@ -286,6 +351,7 @@
         document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
         if (tab.dataset.tab === 'history') renderHistory();
         if (tab.dataset.tab === 'stats') renderStats();
+        if (tab.dataset.tab === 'goals') { renderGoals(); populateGoalTricks(); }
       });
     });
 
@@ -610,6 +676,252 @@
         }
       });
     }
+
+    // --- GOALS & ACHIEVEMENTS ---
+    let goals = JSON.parse(localStorage.getItem('seshlog_goals') || '[]');
+    let unlockedBadges = JSON.parse(localStorage.getItem('seshlog_badges') || '{}');
+
+    // Subtab switching
+    document.getElementById('goals-subtabs').addEventListener('click', e => {
+      if (!e.target.dataset.subtab) return;
+      document.querySelectorAll('#goals-subtabs .tab').forEach(t => t.classList.remove('active'));
+      e.target.classList.add('active');
+      document.getElementById('subtab-active-goals').style.display = e.target.dataset.subtab === 'active-goals' ? '' : 'none';
+      document.getElementById('subtab-achievements').style.display = e.target.dataset.subtab === 'achievements' ? '' : 'none';
+      if (e.target.dataset.subtab === 'achievements') renderAchievements();
+    });
+
+    // Goal type toggle trick field visibility
+    const goalTypeEl = document.getElementById('goal-type');
+    const goalTrickField = document.getElementById('goal-trick-field');
+    goalTypeEl.addEventListener('change', () => {
+      goalTrickField.style.display = goalTypeEl.value === 'trick-count' ? '' : 'none';
+    });
+
+    // Populate trick dropdown when TRICKS load
+    function populateGoalTricks() {
+      const sel = document.getElementById('goal-trick');
+      sel.innerHTML = TRICKS.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    }
+    const origFetch = window.fetch;
+    // Repopulate after tricks load
+    setTimeout(() => populateGoalTricks(), 1000);
+
+    // Set default deadline to 1 week from now
+    const dl = new Date(); dl.setDate(dl.getDate() + 7);
+    document.getElementById('goal-deadline').value = dl.toISOString().slice(0, 10);
+
+    // Save goal
+    document.getElementById('save-goal-btn').addEventListener('click', () => {
+      const type = goalTypeEl.value;
+      const target = parseInt(document.getElementById('goal-target').value);
+      const deadline = document.getElementById('goal-deadline').value;
+      if (!target || target < 1) return alert('Set a target!');
+      if (!deadline) return alert('Pick a deadline!');
+      const goal = {
+        id: Date.now().toString(36),
+        type,
+        trickId: type === 'trick-count' ? document.getElementById('goal-trick').value : null,
+        target,
+        deadline,
+        createdAt: new Date().toISOString(),
+        completed: false
+      };
+      goals.push(goal);
+      localStorage.setItem('seshlog_goals', JSON.stringify(goals));
+      document.getElementById('goal-target').value = '';
+      renderGoals();
+    });
+
+    function getGoalProgress(goal) {
+      const start = new Date(goal.createdAt);
+      const end = new Date(goal.deadline + 'T23:59:59');
+      const relevant = sessions.filter(s => {
+        const d = new Date(s.date + 'T12:00:00');
+        return d >= start && d <= end;
+      });
+      switch (goal.type) {
+        case 'trick-count':
+          return relevant.reduce((a, s) => a + s.tricks.filter(t => t === goal.trickId).length, 0);
+        case 'unique-tricks': {
+          const before = new Set(sessions.filter(s => new Date(s.date+'T12:00:00') < start).flatMap(s => s.tricks));
+          const after = new Set(relevant.flatMap(s => s.tricks));
+          let count = 0;
+          after.forEach(t => { if (!before.has(t)) count++; });
+          return count;
+        }
+        case 'session-count':
+          return relevant.length;
+        case 'total-minutes':
+          return relevant.reduce((a, s) => a + (s.duration || 0), 0);
+        case 'streak': {
+          const dates = [...new Set(sessions.map(s => s.date))].sort().reverse();
+          let streak = 0;
+          let check = new Date();
+          for (let i = 0; i < 365; i++) {
+            const d = check.toISOString().slice(0, 10);
+            if (dates.includes(d)) { streak++; check.setDate(check.getDate() - 1); }
+            else if (i === 0) { check.setDate(check.getDate() - 1); }
+            else break;
+          }
+          return streak;
+        }
+        default: return 0;
+      }
+    }
+
+    function goalLabel(goal) {
+      const trickName = goal.trickId ? (TRICKS.find(t => t.id === goal.trickId)?.name || goal.trickId) : '';
+      switch (goal.type) {
+        case 'trick-count': return `Land ${trickName} ${goal.target}×`;
+        case 'unique-tricks': return `Learn ${goal.target} new tricks`;
+        case 'session-count': return `Log ${goal.target} sessions`;
+        case 'total-minutes': return `Skate ${goal.target} minutes`;
+        case 'streak': return `${goal.target}-day streak`;
+        default: return 'Goal';
+      }
+    }
+
+    function renderGoals() {
+      const list = document.getElementById('goals-list');
+      const active = goals.filter(g => !g.completed);
+      const completed = goals.filter(g => g.completed);
+      if (!goals.length) {
+        list.innerHTML = '<div class="empty-state"><div class="emoji">🎯</div><p>Set your first goal above!</p></div>';
+        return;
+      }
+      let html = '';
+      // Check for newly completed goals
+      active.forEach(g => {
+        const progress = getGoalProgress(g);
+        if (progress >= g.target) {
+          g.completed = true;
+          g.completedAt = new Date().toISOString();
+          localStorage.setItem('seshlog_goals', JSON.stringify(goals));
+        }
+      });
+
+      const stillActive = goals.filter(g => !g.completed);
+      const done = goals.filter(g => g.completed);
+
+      stillActive.forEach(g => {
+        const progress = getGoalProgress(g);
+        const pct = Math.min(100, Math.round((progress / g.target) * 100));
+        const today = new Date().toISOString().slice(0, 10);
+        const overdue = g.deadline < today;
+        html += `<div class="card goal-card">
+          <div class="goal-progress-bg" style="width:${pct}%"></div>
+          <div class="goal-header">
+            <span class="goal-title">${goalLabel(g)}</span>
+            <span class="goal-deadline${overdue ? ' overdue' : ''}">📅 ${new Date(g.deadline+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+          </div>
+          <div class="goal-bar"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
+          <div class="goal-nums"><span>${progress} / ${g.target}</span><span>${pct}%</span></div>
+          <div class="goal-actions"><button class="btn btn-sm btn-danger" onclick="deleteGoal('${g.id}')">Remove</button></div>
+        </div>`;
+      });
+
+      if (done.length) {
+        html += '<div style="margin-top:20px"><h3 style="color:var(--green);margin-bottom:12px">✅ Completed</h3>';
+        done.slice(0, 10).forEach(g => {
+          html += `<div class="card goal-card" style="opacity:0.7">
+            <div class="goal-progress-bg" style="width:100%"></div>
+            <div class="goal-header">
+              <span class="goal-title">${goalLabel(g)}</span>
+              <span class="goal-deadline" style="color:var(--green)">✅ Done</span>
+            </div>
+            <div class="goal-bar"><div class="goal-bar-fill complete" style="width:100%"></div></div>
+            <div class="goal-complete-banner">🎉 Goal Achieved!</div>
+            <div class="goal-actions"><button class="btn btn-sm btn-danger" onclick="deleteGoal('${g.id}')">Remove</button></div>
+          </div>`;
+        });
+        html += '</div>';
+      }
+      list.innerHTML = html;
+    }
+
+    window.deleteGoal = function(id) {
+      goals = goals.filter(g => g.id !== id);
+      localStorage.setItem('seshlog_goals', JSON.stringify(goals));
+      renderGoals();
+    };
+
+    // --- ACHIEVEMENTS ---
+    const ACHIEVEMENTS = [
+      { id: 'first-sesh', icon: '🛹', name: 'First Push', desc: 'Log your first session', check: () => sessions.length >= 1 },
+      { id: 'five-sesh', icon: '🖐️', name: 'High Five', desc: 'Log 5 sessions', check: () => sessions.length >= 5 },
+      { id: 'ten-sesh', icon: '🔟', name: 'Dedicated', desc: 'Log 10 sessions', check: () => sessions.length >= 10 },
+      { id: 'twentyfive-sesh', icon: '🏆', name: 'Quarter Century', desc: 'Log 25 sessions', check: () => sessions.length >= 25 },
+      { id: 'fifty-sesh', icon: '👑', name: 'Session King', desc: 'Log 50 sessions', check: () => sessions.length >= 50 },
+      { id: 'hundred-sesh', icon: '💯', name: 'Centurion', desc: 'Log 100 sessions', check: () => sessions.length >= 100 },
+      { id: 'first-trick', icon: '✨', name: 'Trick Unlocked', desc: 'Land your first trick', check: () => sessions.some(s => s.tricks.length > 0) },
+      { id: 'five-unique', icon: '🎯', name: 'Variety Pack', desc: 'Land 5 different tricks', check: () => new Set(sessions.flatMap(s => s.tricks)).size >= 5 },
+      { id: 'ten-unique', icon: '🌟', name: 'Jack of All Trades', desc: 'Land 10 different tricks', check: () => new Set(sessions.flatMap(s => s.tricks)).size >= 10 },
+      { id: 'twenty-unique', icon: '🦄', name: 'Trick Master', desc: 'Land 20 different tricks', check: () => new Set(sessions.flatMap(s => s.tricks)).size >= 20 },
+      { id: 'one-hour', icon: '⏱️', name: 'Hour of Power', desc: 'Log a 60+ minute session', check: () => sessions.some(s => (s.duration || 0) >= 60) },
+      { id: 'two-hours', icon: '🕐', name: 'Marathon', desc: 'Log a 120+ minute session', check: () => sessions.some(s => (s.duration || 0) >= 120) },
+      { id: 'ten-hours', icon: '⌛', name: 'Time Invested', desc: 'Total 10 hours on board', check: () => sessions.reduce((a, s) => a + (s.duration || 0), 0) >= 600 },
+      { id: 'streak-3', icon: '🔥', name: 'On Fire', desc: '3-day skate streak', check: () => calcMaxStreak() >= 3 },
+      { id: 'streak-7', icon: '🔥', name: 'Week Warrior', desc: '7-day skate streak', check: () => calcMaxStreak() >= 7 },
+      { id: 'streak-30', icon: '🌋', name: 'Unstoppable', desc: '30-day skate streak', check: () => calcMaxStreak() >= 30 },
+      { id: 'fire-mood', icon: '😎', name: 'Vibing', desc: 'Log 5 🔥 mood sessions', check: () => sessions.filter(s => s.mood === '🔥').length >= 5 },
+      { id: 'first-goal', icon: '🎯', name: 'Goal Setter', desc: 'Complete your first goal', check: () => goals.some(g => g.completed) },
+      { id: 'five-goals', icon: '🏅', name: 'Achiever', desc: 'Complete 5 goals', check: () => goals.filter(g => g.completed).length >= 5 },
+      { id: 'photographer', icon: '📸', name: 'Shutterbug', desc: 'Add photos to 3 sessions', check: () => sessions.filter(s => s.photo).length >= 3 },
+    ];
+
+    function calcMaxStreak() {
+      const dates = [...new Set(sessions.map(s => s.date))].sort();
+      if (!dates.length) return 0;
+      let max = 1, cur = 1;
+      for (let i = 1; i < dates.length; i++) {
+        const prev = new Date(dates[i - 1]);
+        const curr = new Date(dates[i]);
+        const diff = (curr - prev) / 86400000;
+        if (diff === 1) { cur++; max = Math.max(max, cur); }
+        else if (diff > 1) cur = 1;
+      }
+      return max;
+    }
+
+    function checkBadges() {
+      let newBadge = false;
+      ACHIEVEMENTS.forEach(a => {
+        if (!unlockedBadges[a.id] && a.check()) {
+          unlockedBadges[a.id] = new Date().toISOString();
+          newBadge = true;
+        }
+      });
+      if (newBadge) localStorage.setItem('seshlog_badges', JSON.stringify(unlockedBadges));
+      return newBadge;
+    }
+
+    function renderAchievements() {
+      checkBadges();
+      const grid = document.getElementById('achievements-grid');
+      const unlocked = ACHIEVEMENTS.filter(a => unlockedBadges[a.id]);
+      const locked = ACHIEVEMENTS.filter(a => !unlockedBadges[a.id]);
+      grid.innerHTML = `<p style="color:var(--muted);font-size:0.85rem;margin-bottom:16px">🏅 ${unlocked.length} / ${ACHIEVEMENTS.length} unlocked</p><div class="badge-grid">` +
+        [...unlocked, ...locked].map(a => {
+          const isUnlocked = !!unlockedBadges[a.id];
+          const date = isUnlocked ? new Date(unlockedBadges[a.id]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+          return `<div class="card badge-card${isUnlocked ? '' : ' locked'}">
+            <div class="badge-icon">${a.icon}</div>
+            <div class="badge-name">${a.name}</div>
+            <div class="badge-desc">${a.desc}</div>
+            ${isUnlocked ? `<div class="badge-date">Unlocked ${date}</div>` : ''}
+          </div>`;
+        }).join('') + '</div>';
+    }
+
+    // Check badges on session save
+    const origSaveHandler = document.getElementById('save-btn').onclick;
+    document.getElementById('save-btn').addEventListener('click', () => {
+      setTimeout(() => { if (checkBadges()) { /* could show toast */ } renderGoals(); }, 100);
+    });
+
+    // Initial render
+    setTimeout(renderGoals, 500);
 
     // --- EXPORT / IMPORT ---
     document.getElementById('export-btn').addEventListener('click', () => {
