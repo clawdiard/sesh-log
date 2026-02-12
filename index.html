@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SeshLog — Skateboarding Session Logger</title>
+  <meta name="description" content="Log your skateboarding sessions, track tricks landed, and watch your progression over time. No account needed — all data stays on your device.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛹</text></svg>">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --card: #14141f;
+      --border: #1e1e2e;
+      --accent: #6c5ce7;
+      --accent2: #a29bfe;
+      --text: #e0e0e8;
+      --muted: #7a7a8e;
+      --green: #00cec9;
+      --red: #ff7675;
+      --orange: #fdcb6e;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+    
+    header { text-align: center; padding: 32px 0 24px; }
+    header h1 { font-size: 2rem; font-weight: 800; }
+    header h1 span { color: var(--accent); }
+    header p { color: var(--muted); margin-top: 4px; font-size: 0.9rem; }
+    
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--card); border-radius: var(--radius); padding: 4px; }
+    .tab { flex: 1; padding: 10px; text-align: center; border: none; background: transparent; color: var(--muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 8px; transition: all 0.2s; }
+    .tab.active { background: var(--accent); color: #fff; }
+    
+    .panel { display: none; }
+    .panel.active { display: block; }
+    
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+    
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, textarea, select { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem; outline: none; font-family: inherit; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 60px; }
+    
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+    .field { margin-bottom: 12px; }
+    
+    .trick-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-height: 200px; overflow-y: auto; padding: 8px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); }
+    .trick-chip { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; border: 1px solid var(--border); background: var(--card); color: var(--muted); cursor: pointer; transition: all 0.15s; user-select: none; }
+    .trick-chip.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .trick-chip:hover { border-color: var(--accent2); }
+    
+    .mood-picker { display: flex; gap: 8px; margin-top: 6px; }
+    .mood-btn { font-size: 1.5rem; background: var(--bg); border: 2px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: all 0.15s; }
+    .mood-btn.selected { border-color: var(--accent); background: var(--card); transform: scale(1.1); }
+    
+    .btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-danger { background: var(--red); }
+    .btn-sm { padding: 6px 12px; font-size: 0.8rem; width: auto; margin: 0; }
+    
+    .session-item { cursor: pointer; transition: all 0.15s; }
+    .session-item:hover { border-color: var(--accent2); }
+    .session-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .session-date { font-weight: 700; }
+    .session-mood { font-size: 1.2rem; }
+    .session-location { color: var(--muted); font-size: 0.85rem; }
+    .session-tricks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .session-tricks .trick-chip { font-size: 0.75rem; cursor: default; }
+    .session-duration { color: var(--green); font-size: 0.85rem; font-weight: 600; }
+    .session-notes { color: var(--muted); font-size: 0.85rem; margin-top: 6px; font-style: italic; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
+    .stat-num { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    
+    .streak-bar { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; text-align: center; }
+    .streak-bar .fire { font-size: 2rem; }
+    .streak-bar .streak-num { font-size: 1.4rem; font-weight: 800; color: var(--orange); }
+    
+    .top-tricks { margin-top: 12px; }
+    .top-trick-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .top-trick-row:last-child { border: none; }
+    .top-trick-name { font-weight: 600; }
+    .top-trick-count { color: var(--accent); font-weight: 700; }
+    
+    .empty-state { text-align: center; padding: 40px 16px; color: var(--muted); }
+    .empty-state .emoji { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.95rem; }
+    
+    .filter-row { margin-bottom: 12px; }
+    .filter-row input { font-size: 0.85rem; padding: 8px 12px; }
+    
+    .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: flex-end; justify-content: center; }
+    .detail-overlay.open { display: flex; }
+    .detail-sheet { background: var(--card); border-radius: var(--radius) var(--radius) 0 0; width: 100%; max-width: 640px; max-height: 80vh; overflow-y: auto; padding: 24px 16px; }
+    .detail-sheet h3 { margin-bottom: 12px; }
+    .detail-actions { display: flex; gap: 8px; margin-top: 16px; }
+    
+    .category-header { font-size: 0.75rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.5px; width: 100%; margin-top: 8px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛹 Sesh<span>Log</span></h1>
+      <p>Track your sessions. Watch your progression.</p>
+    </header>
+    
+    <div class="tabs">
+      <button class="tab active" data-tab="log">+ Log</button>
+      <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="stats">Stats</button>
+    </div>
+    
+    <!-- LOG PANEL -->
+    <div class="panel active" id="panel-log">
+      <div class="card">
+        <div class="row">
+          <div class="field">
+            <label>Date</label>
+            <input type="date" id="sesh-date">
+          </div>
+          <div class="field">
+            <label>Duration (min)</label>
+            <input type="number" id="sesh-duration" placeholder="60" min="1">
+          </div>
+        </div>
+        <div class="field">
+          <label>Location</label>
+          <input type="text" id="sesh-location" placeholder="LES Skatepark, local spot, etc.">
+        </div>
+        <div class="field">
+          <label>Mood</label>
+          <div class="mood-picker">
+            <button class="mood-btn" data-mood="🔥">🔥</button>
+            <button class="mood-btn" data-mood="😊">😊</button>
+            <button class="mood-btn" data-mood="😐">😐</button>
+            <button class="mood-btn" data-mood="😤">😤</button>
+            <button class="mood-btn" data-mood="🤕">🤕</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tricks Landed</label>
+          <input type="text" id="trick-search" placeholder="Search tricks...">
+          <div class="trick-picker" id="trick-picker"></div>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="sesh-notes" placeholder="How did it go? What did you work on?"></textarea>
+        </div>
+        <button class="btn" id="save-btn">Save Session</button>
+      </div>
+    </div>
+    
+    <!-- HISTORY PANEL -->
+    <div class="panel" id="panel-history">
+      <div class="filter-row">
+        <input type="text" id="history-search" placeholder="Search sessions...">
+      </div>
+      <div id="history-list"></div>
+    </div>
+    
+    <!-- STATS PANEL -->
+    <div class="panel" id="panel-stats">
+      <div id="stats-content"></div>
+    </div>
+  </div>
+  
+  <!-- DETAIL OVERLAY -->
+  <div class="detail-overlay" id="detail-overlay">
+    <div class="detail-sheet" id="detail-sheet"></div>
+  </div>
+
+  <script>
+    // --- DATA ---
+    let TRICKS = [];
+    let sessions = JSON.parse(localStorage.getItem('seshlog_sessions') || '[]');
+    let selectedTricks = new Set();
+    let selectedMood = '';
+
+    fetch('data/tricks.json').then(r => r.json()).then(t => { TRICKS = t; renderTrickPicker(); });
+
+    // --- TABS ---
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'history') renderHistory();
+        if (tab.dataset.tab === 'stats') renderStats();
+      });
+    });
+
+    // --- MOOD ---
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedMood = btn.dataset.mood;
+      });
+    });
+
+    // --- TRICKS ---
+    function renderTrickPicker(filter = '') {
+      const picker = document.getElementById('trick-picker');
+      const f = filter.toLowerCase();
+      const grouped = {};
+      TRICKS.filter(t => !f || t.name.toLowerCase().includes(f) || t.category.toLowerCase().includes(f))
+        .forEach(t => { (grouped[t.category] = grouped[t.category] || []).push(t); });
+      picker.innerHTML = '';
+      Object.keys(grouped).sort().forEach(cat => {
+        const h = document.createElement('div');
+        h.className = 'category-header';
+        h.textContent = cat;
+        picker.appendChild(h);
+        grouped[cat].sort((a,b) => a.difficulty - b.difficulty).forEach(t => {
+          const chip = document.createElement('span');
+          chip.className = 'trick-chip' + (selectedTricks.has(t.id) ? ' selected' : '');
+          chip.textContent = t.name;
+          chip.onclick = () => { selectedTricks.has(t.id) ? selectedTricks.delete(t.id) : selectedTricks.add(t.id); renderTrickPicker(filter); };
+          picker.appendChild(chip);
+        });
+      });
+    }
+    document.getElementById('trick-search').addEventListener('input', e => renderTrickPicker(e.target.value));
+
+    // --- SAVE ---
+    document.getElementById('sesh-date').valueAsDate = new Date();
+    document.getElementById('save-btn').addEventListener('click', () => {
+      const date = document.getElementById('sesh-date').value;
+      const duration = parseInt(document.getElementById('sesh-duration').value) || 0;
+      const location = document.getElementById('sesh-location').value.trim();
+      const notes = document.getElementById('sesh-notes').value.trim();
+      if (!date) return alert('Pick a date!');
+      const sesh = {
+        id: Date.now().toString(36),
+        date, duration, location, notes,
+        mood: selectedMood,
+        tricks: Array.from(selectedTricks),
+        createdAt: new Date().toISOString()
+      };
+      sessions.unshift(sesh);
+      localStorage.setItem('seshlog_sessions', JSON.stringify(sessions));
+      // Reset
+      document.getElementById('sesh-duration').value = '';
+      document.getElementById('sesh-location').value = '';
+      document.getElementById('sesh-notes').value = '';
+      selectedTricks.clear();
+      selectedMood = '';
+      document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+      renderTrickPicker();
+      alert('Session saved! 🤙');
+    });
+
+    // --- HISTORY ---
+    function renderHistory(filter = '') {
+      const list = document.getElementById('history-list');
+      const f = filter.toLowerCase();
+      const filtered = sessions.filter(s => !f || s.location.toLowerCase().includes(f) || s.notes.toLowerCase().includes(f) || s.tricks.some(t => t.includes(f)));
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty-state"><div class="emoji">📋</div><p>No sessions yet. Go skate and log it!</p></div>';
+        return;
+      }
+      list.innerHTML = filtered.map(s => {
+        const trickNames = s.tricks.map(id => { const t = TRICKS.find(x => x.id === id); return t ? t.name : id; });
+        return `<div class="card session-item" onclick="showDetail('${s.id}')">
+          <div class="session-meta">
+            <span class="session-date">${new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
+            <span class="session-mood">${s.mood || ''}</span>
+          </div>
+          ${s.location ? `<div class="session-location">📍 ${s.location}</div>` : ''}
+          ${s.duration ? `<div class="session-duration">⏱ ${s.duration} min</div>` : ''}
+          ${trickNames.length ? `<div class="session-tricks">${trickNames.map(n => `<span class="trick-chip selected">${n}</span>`).join('')}</div>` : ''}
+          ${s.notes ? `<div class="session-notes">"${s.notes}"</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('history-search').addEventListener('input', e => renderHistory(e.target.value));
+
+    // --- DETAIL ---
+    window.showDetail = function(id) {
+      const s = sessions.find(x => x.id === id);
+      if (!s) return;
+      const trickNames = s.tricks.map(tid => { const t = TRICKS.find(x => x.id === tid); return t ? t.name : tid; });
+      const sheet = document.getElementById('detail-sheet');
+      sheet.innerHTML = `
+        <h3>${s.mood || '🛹'} ${new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</h3>
+        ${s.location ? `<p>📍 <strong>${s.location}</strong></p>` : ''}
+        ${s.duration ? `<p>⏱ ${s.duration} minutes</p>` : ''}
+        ${trickNames.length ? `<p style="margin-top:8px"><strong>Tricks Landed:</strong></p><div class="session-tricks" style="margin-top:4px">${trickNames.map(n => `<span class="trick-chip selected">${n}</span>`).join('')}</div>` : ''}
+        ${s.notes ? `<p style="margin-top:12px"><strong>Notes:</strong></p><p style="color:var(--muted);font-style:italic">${s.notes}</p>` : ''}
+        <div class="detail-actions">
+          <button class="btn btn-sm" onclick="closeDetail()">Close</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteSession('${s.id}')">Delete</button>
+        </div>`;
+      document.getElementById('detail-overlay').classList.add('open');
+    };
+    window.closeDetail = () => document.getElementById('detail-overlay').classList.remove('open');
+    window.deleteSession = function(id) {
+      if (!confirm('Delete this session?')) return;
+      sessions = sessions.filter(s => s.id !== id);
+      localStorage.setItem('seshlog_sessions', JSON.stringify(sessions));
+      closeDetail();
+      renderHistory();
+    };
+    document.getElementById('detail-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeDetail(); });
+
+    // --- STATS ---
+    function renderStats() {
+      const el = document.getElementById('stats-content');
+      if (!sessions.length) {
+        el.innerHTML = '<div class="empty-state"><div class="emoji">📊</div><p>Log some sessions to see your stats!</p></div>';
+        return;
+      }
+      const totalSessions = sessions.length;
+      const totalMinutes = sessions.reduce((a, s) => a + (s.duration || 0), 0);
+      const totalHours = (totalMinutes / 60).toFixed(1);
+      const allTricks = sessions.flatMap(s => s.tricks);
+      const uniqueTricks = new Set(allTricks).size;
+      
+      // Streak
+      const dates = [...new Set(sessions.map(s => s.date))].sort().reverse();
+      let streak = 0;
+      const today = new Date().toISOString().slice(0, 10);
+      let check = new Date(today);
+      for (let i = 0; i < 365; i++) {
+        const d = check.toISOString().slice(0, 10);
+        if (dates.includes(d)) { streak++; check.setDate(check.getDate() - 1); }
+        else if (i === 0) { check.setDate(check.getDate() - 1); } // allow today not logged yet
+        else break;
+      }
+
+      // Top tricks
+      const trickCounts = {};
+      allTricks.forEach(t => trickCounts[t] = (trickCounts[t] || 0) + 1);
+      const top5 = Object.entries(trickCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+      el.innerHTML = `
+        <div class="streak-bar">
+          <div class="fire">🔥</div>
+          <div class="streak-num">${streak}-day streak</div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-num">${totalSessions}</div><div class="stat-label">Sessions</div></div>
+          <div class="stat-card"><div class="stat-num">${totalHours}h</div><div class="stat-label">Time on Board</div></div>
+          <div class="stat-card"><div class="stat-num">${uniqueTricks}</div><div class="stat-label">Unique Tricks</div></div>
+          <div class="stat-card"><div class="stat-num">${allTricks.length}</div><div class="stat-label">Total Trick Lands</div></div>
+        </div>
+        ${top5.length ? `<div class="card"><h3 style="margin-bottom:8px">🏆 Most Landed</h3><div class="top-tricks">${top5.map(([id, count]) => {
+          const t = TRICKS.find(x => x.id === id);
+          return `<div class="top-trick-row"><span class="top-trick-name">${t ? t.name : id}</span><span class="top-trick-count">×${count}</span></div>`;
+        }).join('')}</div></div>` : ''}
+      `;
+    }
+  </script>
+</body>
+</html>
