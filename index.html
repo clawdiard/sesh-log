@@ -438,7 +438,7 @@
           ${s.photo ? `<img src="${s.photo}" style="width:100%;border-radius:8px;margin-top:8px;border:1px solid var(--border)">` : ''}
           ${s.duration ? `<div class="session-duration">⏱ ${s.duration} min</div>` : ''}
           ${trickNames.length ? `<div class="session-tricks">${trickNames.map(n => `<span class="trick-chip selected">${n}</span>`).join('')}</div>` : ''}
-          ${s.notes ? `<div class="session-notes">"${s.notes}"</div>` : ''}
+          ${s.notes ? `<div class="session-notes">${s.notes}</div>` : ''}
         </div>`;
       }).join('');
     }
