@@ -414,6 +414,7 @@
       selectedMood = '';
       document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
       sessionPhoto = null; photoPreview.style.display = 'none'; document.getElementById('photo-add-btn').style.display = '';
+      document.getElementById('trick-search').value = '';
       renderTrickPicker();
       alert('Session saved! 🤙');
     });
