@@ -349,7 +349,7 @@
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
-        if (tab.dataset.tab === 'history') renderHistory();
+        if (tab.dataset.tab === 'history') renderHistory(document.getElementById('history-search').value);
         if (tab.dataset.tab === 'stats') renderStats();
         if (tab.dataset.tab === 'goals') { renderGoals(); populateGoalTricks(); }
       });
